@@ -2,7 +2,7 @@ import { z } from "zod";
 import { generateProcedure, Server } from "../lib";
 
 const server = new Server({
-  port: 3000,
+  port: 2000,
   defaultMiddleware: {
     bodyParser: true,
     cookieParser: true,
@@ -26,13 +26,14 @@ const authMiddleware = generateProcedure(async (req, res) => {
 
 messagesRouter.patch(
   "/:message_uuid",
-  authMiddleware.input(z.object({ new_content: z.string() }))
-)(async function (req, res) {
-  const { ...locals } = res.locals;
-  //         ^?
+  authMiddleware.input(z.object({ new_content: z.string() })),
+  async function (req, res, locals) {
+    const { ...testing } = locals;
+    //         ^?
 
-  const { ...params } = req.params;
-  //         ^?
+    const { ...params } = req.params;
+    //         ^?
 
-  return { locals, params };
-});
+    return { locals, params };
+  }
+);

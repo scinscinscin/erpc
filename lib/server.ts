@@ -43,7 +43,7 @@ export class Server {
   private constructorOptions: ServerConstructorOptions;
   private readonly LOG_ERRORS: boolean;
   private readonly app = express();
-  public readonly rootRouter = new Router();
+  public readonly rootRouter = Router();
 
   constructor(opts: ServerConstructorOptions) {
     this.constructorOptions = opts;

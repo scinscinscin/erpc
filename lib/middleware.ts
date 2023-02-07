@@ -17,7 +17,8 @@ export type GenerateProcedure<Current extends Record<string, any>, Previous exte
   use: <HandlerReturnType, RouteParams = {}>(
     handler: (
       req: Request<RouteParams>,
-      res: Response<unknown, Overwrite<Current, Previous>>
+      res: Response<unknown, Overwrite<Current, Previous>>,
+      locals: Overwrite<Current, Previous>
     ) => Promise<HandlerReturnType>
   ) => Router;
 };
@@ -56,7 +57,11 @@ export function generateProcedure<
     },
 
     use: function <HandlerReturnType, RouteParams = {}>(
-      handler: (req: Request<RouteParams>, res: Response<unknown, MergedLocals>) => Promise<HandlerReturnType>
+      handler: (
+        req: Request<RouteParams>,
+        res: Response<unknown, MergedLocals>,
+        locals: MergedLocals
+      ) => Promise<HandlerReturnType>
     ) {
       const middlewares: any[] = previous.map((mwFunction) => {
         return function (req: Request, res: Response, next: NextFunction) {
@@ -73,7 +78,7 @@ export function generateProcedure<
       });
 
       middlewares.push(function (req: Request<RouteParams>, res: Response, next: NextFunction) {
-        handler(req, res as Response<unknown, MergedLocals>)
+        handler(req, res as Response<unknown, MergedLocals>, res.locals as MergedLocals)
           .then((result) => {
             res.json({ success: true, result });
           })

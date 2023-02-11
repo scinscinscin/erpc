@@ -7,6 +7,16 @@ type Middleware<Ret, ExistingParams extends Record<string, any>> = (
   res: Response<unknown, ExistingParams>
 ) => Promise<Ret>;
 
+export class FinalizedHandler<ReturnType, BodyParameters, PathParameters> {
+  __internal_reflection: {
+    return_type: ReturnType;
+    body_params: BodyParameters;
+    path_parameters: PathParameters;
+  };
+
+  constructor(public readonly __middlewares: any[]) {}
+}
+
 export type GenerateProcedure<Current extends Record<string, any>, Previous extends {}> = {
   extend: <ExtensionType extends Record<string, any>>(
     append: Middleware<ExtensionType, Overwrite<Current, Previous>>
@@ -14,13 +24,20 @@ export type GenerateProcedure<Current extends Record<string, any>, Previous exte
   input: <T extends ZodType<any, any, any>>(
     checker: T
   ) => GenerateProcedure<{ input: z.infer<T> }, Overwrite<Current, Previous>>;
-  use: <HandlerReturnType, RouteParams = {}>(
+  __finalize: <HandlerReturnType, RouteParams = {}>(
     handler: (
       req: Request<RouteParams>,
       res: Response<unknown, Overwrite<Current, Previous>>,
       locals: Overwrite<Current, Previous>
     ) => Promise<HandlerReturnType>
   ) => Router;
+  use: <HandlerReturnType, RouteParams = {}>(
+    handler: (
+      req: Request<RouteParams>,
+      res: Response<unknown, Overwrite<Current, Previous>>,
+      locals: Overwrite<Current, Previous>
+    ) => Promise<HandlerReturnType>
+  ) => FinalizedHandler<HandlerReturnType, Overwrite<Current, Previous>["input"], RouteParams>;
 };
 
 export function generateProcedure<
@@ -44,8 +61,41 @@ export function generateProcedure<
     return generateProcedure<ExtensionType, MergedLocals>(append, { previous });
   }
 
+  function use<HandlerReturnType, RouteParams = {}>(
+    handler: (
+      req: Request<RouteParams>,
+      res: Response<unknown, MergedLocals>,
+      locals: MergedLocals
+    ) => Promise<HandlerReturnType>
+  ) {
+    const middlewares: any[] = previous.map((mwFunction) => {
+      return function (req: Request, res: Response, next: NextFunction) {
+        mwFunction(req, res as any)
+          .then((result) => {
+            Object.entries(result as Record<string, any>).forEach(([key, value]) => {
+              res.locals[key] = value;
+            });
+
+            return next();
+          })
+          .catch(next); /** Send the error to the root level error handler */
+      };
+    });
+
+    middlewares.push(function (req: Request<RouteParams>, res: Response, next: NextFunction) {
+      handler(req, res as Response<unknown, MergedLocals>, res.locals as MergedLocals)
+        .then((result) => {
+          res.json({ success: true, result });
+        })
+        .catch(next);
+    });
+
+    return new FinalizedHandler<HandlerReturnType, Overwrite<Current, Previous>["input"], RouteParams>(middlewares);
+  }
+
   return {
     extend,
+    use,
 
     input: function <T extends ZodType<any, any, any>>(checker: T) {
       const bodyValidator: Middleware<{ input: z.infer<T> }, MergedLocals> = async function (req, res) {
@@ -56,36 +106,17 @@ export function generateProcedure<
       return extend(bodyValidator);
     },
 
-    use: function <HandlerReturnType, RouteParams = {}>(
+    __finalize: function <HandlerReturnType, RouteParams = {}>(
       handler: (
         req: Request<RouteParams>,
         res: Response<unknown, MergedLocals>,
         locals: MergedLocals
       ) => Promise<HandlerReturnType>
     ) {
-      const middlewares: any[] = previous.map((mwFunction) => {
-        return function (req: Request, res: Response, next: NextFunction) {
-          mwFunction(req, res as any)
-            .then((result) => {
-              Object.entries(result as Record<string, any>).forEach(([key, value]) => {
-                res.locals[key] = value;
-              });
-
-              return next();
-            })
-            .catch(next); /** Send the error to the root level error handler */
-        };
-      });
-
-      middlewares.push(function (req: Request<RouteParams>, res: Response, next: NextFunction) {
-        handler(req, res as Response<unknown, MergedLocals>, res.locals as MergedLocals)
-          .then((result) => {
-            res.json({ success: true, result });
-          })
-          .catch(next);
-      });
-
-      return Router({ mergeParams: true }).use("/", ...middlewares);
+      const { __middlewares } = use(handler);
+      return Router({ mergeParams: true }).use("/", ...__middlewares);
     },
   };
 }
+
+export const baseProcedure = generateProcedure(async (req, res) => ({}));

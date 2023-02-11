@@ -6,7 +6,7 @@ const server = new Server({
   defaultMiddleware: {
     bodyParser: true,
     cookieParser: true,
-    corsOptions: { credentials: true, origin: "http://localhost:3000" },
+    corsOptions: { credentials: true, origin: "http://localhost:2000" },
   },
 });
 

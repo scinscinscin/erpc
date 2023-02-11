@@ -1,7 +1,7 @@
 import express, { Request, Response, NextFunction } from "express";
 import cors, { CorsOptions } from "cors";
 import cookieParser from "cookie-parser";
-import { Router } from "./router";
+import { Router, RouterT } from "./router";
 
 export interface ServerConstructorOptions {
   /** The port to run the server on */
@@ -43,9 +43,10 @@ export class Server {
   private constructorOptions: ServerConstructorOptions;
   private readonly LOG_ERRORS: boolean;
   private readonly app = express();
-  public readonly rootRouter = Router();
+  public readonly rootRouter: RouterT<{}>;
 
-  constructor(opts: ServerConstructorOptions) {
+  constructor(opts: ServerConstructorOptions, router = Router("/")) {
+    this.rootRouter = router;
     this.constructorOptions = opts;
     this.LOG_ERRORS = !(opts.logErrors === false);
 

@@ -21,7 +21,8 @@ type HTTPMethodProviderType<PathParams extends {}> = <
 export interface RouterT<PathParams extends {}> {
   expressRouter: ExpressRouter;
   sub: <PathString extends string>(path: PathString) => RouterT<Overwrite<RouteParameters<PathString>, PathParams>>;
-
+  merge: <SubPathParams extends {}>(subrouter: RouterT<SubPathParams>) => RouterT<PathParams>;
+  subroutedAt: () => string;
   get: HTTPMethodProviderType<PathParams>;
   post: HTTPMethodProviderType<PathParams>;
   put: HTTPMethodProviderType<PathParams>;
@@ -29,21 +30,27 @@ export interface RouterT<PathParams extends {}> {
   delete: HTTPMethodProviderType<PathParams>;
 }
 
-export function Router<PathParams extends {}>(opts?: RouterOptions): RouterT<PathParams> {
+export function Router<PathParams extends {}>(path: string, opts?: RouterOptions): RouterT<PathParams> {
   const expressRouter = ExpressRouter({ mergeParams: true, ...opts });
 
   return {
     expressRouter,
+    subroutedAt: () => path,
     sub: function <PathString extends string>(path: PathString) {
-      const router = Router<Overwrite<RouteParameters<PathString>, PathParams>>();
+      const router = Router<Overwrite<RouteParameters<PathString>, PathParams>>(path);
       this.expressRouter.use(path, router.expressRouter);
       return router;
     },
 
-    get: (path, mw, handler) => expressRouter.get(path, mw.use(handler)),
-    post: (path, mw, handler) => expressRouter.post(path, mw.use(handler)),
-    put: (path, mw, handler) => expressRouter.put(path, mw.use(handler)),
-    patch: (path, mw, handler) => expressRouter.patch(path, mw.use(handler)),
-    delete: (path, mw, handler) => expressRouter.delete(path, mw.use(handler)),
+    merge: function (subrouter) {
+      this.expressRouter.use(subrouter.subroutedAt(), subrouter.expressRouter);
+      return this;
+    },
+
+    get: (path, mw, handler) => expressRouter.get(path, mw.__finalize(handler)),
+    post: (path, mw, handler) => expressRouter.post(path, mw.__finalize(handler)),
+    put: (path, mw, handler) => expressRouter.put(path, mw.__finalize(handler)),
+    patch: (path, mw, handler) => expressRouter.patch(path, mw.__finalize(handler)),
+    delete: (path, mw, handler) => expressRouter.delete(path, mw.__finalize(handler)),
   };
 }

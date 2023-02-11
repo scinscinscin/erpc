@@ -1,4 +1,4 @@
-# @scinorandex/eRPC 
+# @scinorandex/erpc 
 
 A type-safe framework for building declarative Express APIs.
 

@@ -7,23 +7,32 @@ type Middleware<Ret, ExistingParams extends Record<string, any>> = (
   res: Response<unknown, ExistingParams>
 ) => Promise<Ret>;
 
-export class FinalizedHandler<ReturnType, BodyParameters, PathParameters> {
+export class FinalizedHandler<ReturnType, BodyParameters, PathParameters, QueryParameters> {
   __internal_reflection: {
     return_type: ReturnType;
     body_params: BodyParameters;
     path_parameters: PathParameters;
+    query_parameters: QueryParameters;
   };
 
-  constructor(public readonly __middlewares: any[]) {}
+  constructor(public readonly __middlewares: any[]) {
+    this.__internal_reflection = undefined as any;
+  }
 }
 
 export type GenerateProcedure<Current extends Record<string, any>, Previous extends {}> = {
   extend: <ExtensionType extends Record<string, any>>(
     append: Middleware<ExtensionType, Overwrite<Current, Previous>>
   ) => GenerateProcedure<ExtensionType, Overwrite<Current, Previous>>;
+
   input: <T extends ZodType<any, any, any>>(
     checker: T
   ) => GenerateProcedure<{ input: z.infer<T> }, Overwrite<Current, Previous>>;
+
+  query: <T extends ZodType<any, any, any>>(
+    checker: T
+  ) => GenerateProcedure<{ query: z.infer<T> }, Overwrite<Current, Previous>>;
+
   __finalize: <HandlerReturnType, RouteParams = {}>(
     handler: (
       req: Request<RouteParams>,
@@ -31,13 +40,19 @@ export type GenerateProcedure<Current extends Record<string, any>, Previous exte
       locals: Overwrite<Current, Previous>
     ) => Promise<HandlerReturnType>
   ) => Router;
+
   use: <HandlerReturnType, RouteParams = {}>(
     handler: (
       req: Request<RouteParams>,
       res: Response<unknown, Overwrite<Current, Previous>>,
       locals: Overwrite<Current, Previous>
     ) => Promise<HandlerReturnType>
-  ) => FinalizedHandler<HandlerReturnType, Overwrite<Current, Previous>["input"], RouteParams>;
+  ) => FinalizedHandler<
+    HandlerReturnType,
+    Overwrite<Current, Previous>["input"],
+    RouteParams,
+    Overwrite<Current, Previous>["query"]
+  >;
 };
 
 export function generateProcedure<
@@ -47,7 +62,7 @@ export function generateProcedure<
   mw: Middleware<Current, Previous>,
   ctx?: { previous?: Middleware<unknown, any>[] }
 ): GenerateProcedure<Current, Previous> {
-  const previous = ctx?.previous ?? ([] as Middleware<unknown, any>[]);
+  const previous = [...(ctx?.previous ?? ([] as Middleware<unknown, any>[]))];
   previous.push(mw);
 
   type MergedLocals = Overwrite<Current, Previous>;
@@ -58,7 +73,7 @@ export function generateProcedure<
   function extend<ExtensionType extends Record<string, any>>(append: Middleware<ExtensionType, MergedLocals>) {
     // The middleware that is going to be appended needs to know the sum of the middleware that came before it, so we give it MergedLocals
     // We also need to keep track of the properties it's going to append, which is passed into generateProcedure
-    return generateProcedure<ExtensionType, MergedLocals>(append, { previous });
+    return generateProcedure<ExtensionType, MergedLocals>(append, { previous: [...previous] });
   }
 
   function use<HandlerReturnType, RouteParams = {}>(
@@ -90,7 +105,12 @@ export function generateProcedure<
         .catch(next);
     });
 
-    return new FinalizedHandler<HandlerReturnType, Overwrite<Current, Previous>["input"], RouteParams>(middlewares);
+    return new FinalizedHandler<
+      HandlerReturnType,
+      Overwrite<Current, Previous>["input"],
+      RouteParams,
+      Overwrite<Current, Previous>["query"]
+    >(middlewares);
   }
 
   return {
@@ -104,6 +124,19 @@ export function generateProcedure<
       };
 
       return extend(bodyValidator);
+    },
+
+    query: function <T extends ZodType<any, any, any>>(checker: T) {
+      const queryValidator: Middleware<{ query: z.infer<T> }, MergedLocals> = async function (req, res) {
+        const query =
+          typeof req.query.__erpc_query === "string"
+            ? JSON.parse(Buffer.from(req.query.__erpc_query, "base64url").toString())
+            : req.query;
+
+        return { query: await checker.parseAsync(query) };
+      };
+
+      return extend(queryValidator);
     },
 
     __finalize: function <HandlerReturnType, RouteParams = {}>(

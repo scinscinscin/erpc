@@ -2,6 +2,7 @@ import express, { Request, Response, NextFunction } from "express";
 import cors, { CorsOptions } from "cors";
 import cookieParser from "cookie-parser";
 import { Router, RouterT } from "./router";
+import morgan from "morgan";
 
 export interface ServerConstructorOptions {
   /** The port to run the server on */
@@ -36,6 +37,9 @@ export interface ServerConstructorOptions {
 
     /** If true, the server loads cookie-parser. Defaults to true */
     cookieParser?: boolean;
+
+    /** If true, the server loads morgan. Defaults to true */
+    morgan?: boolean;
   };
 }
 
@@ -57,6 +61,7 @@ export class Server {
     if (defaultMiddleware?.corsOptions !== undefined) this.app.use(cors(defaultMiddleware.corsOptions));
     if (!(defaultMiddleware?.bodyParser === false)) this.app.use(express.json());
     if (!(defaultMiddleware?.cookieParser === false)) this.app.use(cookieParser());
+    if (!(defaultMiddleware?.morgan === false)) this.app.use(morgan("common"));
 
     this.app.use("/", this.rootRouter.expressRouter);
 

@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { generateProcedure, Server } from "../lib";
+import { baseProcedure, Server } from "../lib";
 
 const server = new Server({
   port: 2000,
@@ -10,30 +10,34 @@ const server = new Server({
   },
 });
 
-const userRouter = server.sub("/user/:user_uuid");
-const messagesRouter = userRouter.sub("/message");
-
-const userMap = new Map<string, string>();
-userMap.set("testing-token", "scinorandex");
-
-const authMiddleware = generateProcedure(async (req, res) => {
-  const user = userMap.get(req.cookies["sessionid"]);
-  if (user != undefined) return { username: user };
-
-  res.status(401);
-  throw new Error("Unauthorized");
+const authProcedures = baseProcedure.extend(async (req, res) => {
+  // if (typeof req.cookies["authToken"] === "string") return { token: req.cookies["authToken"] };
+  // else throw new Error("An auth token was not found");
+  return { token: "Example user token" };
 });
 
-messagesRouter.patch(
-  "/:message_uuid",
-  authMiddleware.input(z.object({ new_content: z.string() })),
-  async function (req, res, locals) {
-    const { ...testing } = locals;
-    //         ^?
-
-    const { ...params } = req.params;
-    //         ^?
-
-    return { locals, params };
+server.rootRouter.post(
+  "/register",
+  baseProcedure.input(z.object({ username: z.string(), password: z.string() })),
+  async (req, res, locals) => {
+    return { ...locals.input };
   }
 );
+
+const userRouter = server.sub("/user/:user_uuid");
+userRouter.put(
+  "/msg/:msg_uuid",
+  authProcedures.input(z.object({ new_content: z.string() })),
+  async (req, res, { input }) => {
+    return { updatedBy: req.params.user_uuid, uuid: req.params.msg_uuid, content: input.new_content };
+  }
+);
+
+userRouter.get("/testing", baseProcedure, async (req, res, locals) => {
+  return { data: "this is in the testing route" };
+});
+
+const messageRouter = userRouter.sub("/message");
+messageRouter.post("/create", baseProcedure.input(z.object({ msg_content: z.string() })), async (req, res, {}) => {
+  return { good: true };
+});

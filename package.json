@@ -1,6 +1,6 @@
 {
   "name": "@scinorandex/erpc",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "A type-safe framework for building declarative express APIs",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
@@ -10,7 +10,8 @@
   "scripts": {
     "test": "ERPC_LOG=true ts-node --esm examples/starter.ts",
     "watch": "tsc -w",
-    "build": "tsc"
+    "build": "tsc",
+    "publish": "tsc && npm publish --access public"
   },
   "repository": {
     "type": "git",

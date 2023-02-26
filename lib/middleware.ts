@@ -1,5 +1,6 @@
 import { NextFunction, Request, Response, Router } from "express";
-import { z, ZodType } from "zod";
+import { z, ZodError, ZodType } from "zod";
+import { ERPCError } from "./error";
 import { Overwrite } from "./utils/types";
 
 type Middleware<Ret, ExistingParams extends Record<string, any>> = (
@@ -119,8 +120,12 @@ export function generateProcedure<
 
     input: function <T extends ZodType<any, any, any>>(checker: T) {
       const bodyValidator: Middleware<{ input: z.infer<T> }, MergedLocals> = async function (req, res) {
-        const body = await checker.parseAsync(req.body);
-        return { input: body };
+        try {
+          return { input: await checker.parseAsync(req.body) };
+        } catch (err) {
+          // const message = JSON.stringify(JSON.parse((err as ZodError).toString()));
+          throw new ERPCError({ code: "BAD_REQUEST", message: err.message });
+        }
       };
 
       return extend(bodyValidator);
@@ -128,12 +133,16 @@ export function generateProcedure<
 
     query: function <T extends ZodType<any, any, any>>(checker: T) {
       const queryValidator: Middleware<{ query: z.infer<T> }, MergedLocals> = async function (req, res) {
-        const query =
-          typeof req.query.__erpc_query === "string"
-            ? JSON.parse(Buffer.from(req.query.__erpc_query, "base64url").toString())
-            : req.query;
+        try {
+          const query =
+            typeof req.query.__erpc_query === "string"
+              ? JSON.parse(Buffer.from(req.query.__erpc_query, "base64url").toString())
+              : req.query;
 
-        return { query: await checker.parseAsync(query) };
+          return { query: await checker.parseAsync(query) };
+        } catch (err) {
+          throw new ERPCError({ code: "BAD_REQUEST", message: err.message });
+        }
       };
 
       return extend(queryValidator);

@@ -3,6 +3,7 @@ import cors, { CorsOptions } from "cors";
 import cookieParser from "cookie-parser";
 import { Router, RouterT } from "./router";
 import morgan from "morgan";
+import { ERPCError, ErrorMap } from "./error";
 
 export interface ServerConstructorOptions {
   /** The port to run the server on */
@@ -72,8 +73,20 @@ export class Server {
       }
 
       if (err !== undefined && this.LOG_ERRORS) console.error(err);
+      if (err instanceof ERPCError) {
+        const {
+          opts: { message, code: type, customHTTPCode },
+        } = err;
+
+        res.status(customHTTPCode ?? ErrorMap[type]);
+        res.json({ success: false, error: { type, message } });
+
+        return;
+      }
+
       if (res.statusCode === 200) res.status(500);
-      res.json({ success: false, err: this.LOG_ERRORS ? err.message : undefined });
+      if (err instanceof Error) res.json({ success: false, error: this.LOG_ERRORS ? err.message : undefined });
+      else res.json({ success: false, error: "Unknown internal server error" });
     });
 
     if (!(opts?.startAuto === false)) {

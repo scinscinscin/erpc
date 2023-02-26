@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { baseProcedure, Server } from "../lib";
+import { baseProcedure, Server, ERPCError } from "../lib";
 
 const server = new Server({
   port: 2000,
@@ -20,7 +20,9 @@ server.rootRouter.post(
   "/register",
   baseProcedure.input(z.object({ username: z.string(), password: z.string() })),
   async (req, res, locals) => {
-    return { ...locals.input };
+    if (Math.random() > 0.5)
+      throw new ERPCError({ code: "UNAUTHORIZED", message: "You're unauthorized to access this endpoint" });
+    else return { ...locals.input };
   }
 );
 

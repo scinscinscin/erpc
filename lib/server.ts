@@ -4,6 +4,7 @@ import cookieParser from "cookie-parser";
 import { Router, RouterT } from "./router";
 import morgan from "morgan";
 import { ERPCError, ErrorMap } from "./error";
+import { bodyParser } from "./utils/parser";
 
 export interface ServerConstructorOptions {
   /** The port to run the server on */
@@ -60,7 +61,7 @@ export class Server {
     if (!(defaultHeaders?.xPoweredBy === true)) this.app.disable("x-powered-by");
 
     if (defaultMiddleware?.corsOptions !== undefined) this.app.use(cors(defaultMiddleware.corsOptions));
-    if (!(defaultMiddleware?.bodyParser === false)) this.app.use(express.json());
+    if (!(defaultMiddleware?.bodyParser === false)) this.app.use(bodyParser);
     if (!(defaultMiddleware?.cookieParser === false)) this.app.use(cookieParser());
     if (!(defaultMiddleware?.morgan === false)) this.app.use(morgan("common"));
 

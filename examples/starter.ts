@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { baseProcedure, Server, ERPCError } from "../lib";
+import { baseProcedure, Server, ERPCError, zodFile } from "../lib";
 
 const server = new Server({
   port: 2000,
@@ -38,6 +38,20 @@ userRouter.put(
 userRouter.get("/testing", baseProcedure, async (req, res, locals) => {
   return { data: "this is in the testing route" };
 });
+
+userRouter.put(
+  "/image_upload",
+  baseProcedure.input(
+    z.object({
+      username: z.array(z.string()),
+      image_ko: z.array(zodFile("image/jpeg")),
+    })
+  ),
+  async (req, res, { input }) => {
+    console.log(input.image_ko[0]);
+    //           ^?
+  }
+);
 
 const messageRouter = userRouter.sub("/message");
 messageRouter.post("/create", baseProcedure.input(z.object({ msg_content: z.string() })), async (req, res, {}) => {

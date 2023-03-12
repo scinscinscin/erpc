@@ -10,8 +10,7 @@
   "scripts": {
     "test": "ERPC_LOG=true ts-node --esm examples/starter.ts",
     "watch": "tsc -w",
-    "build": "tsc",
-    "publish": "tsc && npm publish --access public"
+    "build": "tsc"
   },
   "repository": {
     "type": "git",

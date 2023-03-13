@@ -15,11 +15,12 @@ function logBypass<T>(s: string, cb: () => T) {
 type HTTPMethodProviderType<PathParams extends {}> = <
   Current extends Record<string, any>,
   Previous extends {},
+  InputContext extends Record<string, any>,
   EndpointPath extends string,
   HandlerReturnType
 >(
   path: EndpointPath,
-  mw: ReturnType<typeof generateProcedure<Current, Previous>>,
+  mw: ReturnType<typeof generateProcedure<Current, Previous, InputContext>>,
   handler: (
     req: Request<Overwrite<RouteParameters<EndpointPath>, PathParams>>,
     res: Response<unknown, Overwrite<Current, Previous>>,

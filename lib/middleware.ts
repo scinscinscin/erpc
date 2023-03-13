@@ -21,18 +21,30 @@ export class FinalizedHandler<ReturnType, BodyParameters, PathParameters, QueryP
   }
 }
 
-export type GenerateProcedure<Current extends Record<string, any>, Previous extends {}> = {
+export type GenerateProcedure<
+  Current extends Record<string, any>,
+  Previous extends {},
+  InputContext extends Record<string, any>
+> = {
   extend: <ExtensionType extends Record<string, any>>(
     append: Middleware<ExtensionType, Overwrite<Current, Previous>>
-  ) => GenerateProcedure<ExtensionType, Overwrite<Current, Previous>>;
+  ) => GenerateProcedure<ExtensionType, Overwrite<Current, Previous>, InputContext>;
 
   input: <T extends ZodType<any, any, any>>(
     checker: T
-  ) => GenerateProcedure<{ input: z.infer<T> }, Overwrite<Current, Previous>>;
+  ) => GenerateProcedure<
+    { input: z.infer<T> },
+    Overwrite<Current, Previous>,
+    Overwrite<{ input: z.input<T> }, InputContext>
+  >;
 
   query: <T extends ZodType<any, any, any>>(
     checker: T
-  ) => GenerateProcedure<{ query: z.infer<T> }, Overwrite<Current, Previous>>;
+  ) => GenerateProcedure<
+    { query: z.infer<T> },
+    Overwrite<Current, Previous>,
+    Overwrite<{ query: z.input<T> }, InputContext>
+  >;
 
   __finalize: <HandlerReturnType, RouteParams = {}>(
     handler: (
@@ -48,21 +60,20 @@ export type GenerateProcedure<Current extends Record<string, any>, Previous exte
       res: Response<unknown, Overwrite<Current, Previous>>,
       locals: Overwrite<Current, Previous>
     ) => Promise<HandlerReturnType>
-  ) => FinalizedHandler<
-    HandlerReturnType,
-    Overwrite<Current, Previous>["input"],
-    RouteParams,
-    Overwrite<Current, Previous>["query"]
-  >;
+  ) => FinalizedHandler<HandlerReturnType, InputContext["input"], RouteParams, InputContext["query"]>;
 };
 
 export function generateProcedure<
   Current extends Record<string, any> /** The type of the object returned by the current middleware */,
-  Previous extends {} /** The sum of the object returned by the previous middleware */
+  Previous extends {} /** The sum of the object returned by the previous middleware */,
+  InputContext extends Record<
+    string,
+    any
+  > /** The third context used exclusively for inputs that will be passed to FinalizedHandlers */
 >(
   mw: Middleware<Current, Previous>,
   ctx?: { previous?: Middleware<unknown, any>[] }
-): GenerateProcedure<Current, Previous> {
+): GenerateProcedure<Current, Previous, InputContext> {
   const previous = [...(ctx?.previous ?? ([] as Middleware<unknown, any>[]))];
   previous.push(mw);
 
@@ -74,7 +85,7 @@ export function generateProcedure<
   function extend<ExtensionType extends Record<string, any>>(append: Middleware<ExtensionType, MergedLocals>) {
     // The middleware that is going to be appended needs to know the sum of the middleware that came before it, so we give it MergedLocals
     // We also need to keep track of the properties it's going to append, which is passed into generateProcedure
-    return generateProcedure<ExtensionType, MergedLocals>(append, { previous: [...previous] });
+    return generateProcedure<ExtensionType, MergedLocals, InputContext>(append, { previous: [...previous] });
   }
 
   function use<HandlerReturnType, RouteParams = {}>(
@@ -106,12 +117,9 @@ export function generateProcedure<
         .catch(next);
     });
 
-    return new FinalizedHandler<
-      HandlerReturnType,
-      Overwrite<Current, Previous>["input"],
-      RouteParams,
-      Overwrite<Current, Previous>["query"]
-    >(middlewares);
+    return new FinalizedHandler<HandlerReturnType, InputContext["input"], RouteParams, InputContext["query"]>(
+      middlewares
+    );
   }
 
   return {

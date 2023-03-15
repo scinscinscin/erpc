@@ -1,4 +1,4 @@
-import express, { Request, Response, NextFunction } from "express";
+import express, { Request, Response, NextFunction, Router as ExpressRouter } from "express";
 import cors, { CorsOptions } from "cors";
 import cookieParser from "cookie-parser";
 import { Router, RouterT } from "./router";
@@ -51,8 +51,23 @@ export class Server {
   private readonly app = express();
   public readonly rootRouter: RouterT<{}>;
 
+  /**
+   * Intermediate encapsulates all the working logic of erpc, so it can be attatched to
+   * other Express servers (like serving ERPC on /api while a Next.js server runs on /).
+   * Example:
+   *
+   * ```ts
+   * server.use("/api", erpc.intermediate);
+   * server.get("*", (req, res) => {
+   *  return handle(req, res);
+   * });
+   * ```
+   */
+  public readonly intermediate: ExpressRouter;
+
   constructor(opts: ServerConstructorOptions, router = Router("/")) {
     this.rootRouter = router;
+    this.intermediate = ExpressRouter();
     this.constructorOptions = opts;
     this.LOG_ERRORS = !(opts.logErrors === false);
 
@@ -60,15 +75,15 @@ export class Server {
     if (!(defaultHeaders?.etag === true)) this.app.disable("etag");
     if (!(defaultHeaders?.xPoweredBy === true)) this.app.disable("x-powered-by");
 
-    if (defaultMiddleware?.corsOptions !== undefined) this.app.use(cors(defaultMiddleware.corsOptions));
-    if (!(defaultMiddleware?.bodyParser === false)) this.app.use(bodyParser);
-    if (!(defaultMiddleware?.cookieParser === false)) this.app.use(cookieParser());
-    if (!(defaultMiddleware?.morgan === false)) this.app.use(morgan("common"));
+    if (defaultMiddleware?.corsOptions !== undefined) this.intermediate.use(cors(defaultMiddleware.corsOptions));
+    if (!(defaultMiddleware?.bodyParser === false)) this.intermediate.use(bodyParser);
+    if (!(defaultMiddleware?.cookieParser === false)) this.intermediate.use(cookieParser());
+    if (!(defaultMiddleware?.morgan === false)) this.intermediate.use(morgan("common"));
 
-    this.app.use("/", this.rootRouter.expressRouter);
+    this.intermediate.use(this.rootRouter.expressRouter);
 
     /** Error handler */
-    this.app.use((err: Error, req: Request, res: Response, next: NextFunction) => {
+    this.intermediate.use((err: Error, req: Request, res: Response, next: NextFunction) => {
       if (this.constructorOptions.errorHandler != undefined) {
         return this.constructorOptions.errorHandler(err, req, res);
       }
@@ -89,6 +104,8 @@ export class Server {
       if (err instanceof Error) res.json({ success: false, error: this.LOG_ERRORS ? err.message : undefined });
       else res.json({ success: false, error: "Unknown internal server error" });
     });
+
+    this.app.use("/", this.intermediate);
 
     if (!(opts?.startAuto === false)) {
       this.listen((port) => {

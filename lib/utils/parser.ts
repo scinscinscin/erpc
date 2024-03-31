@@ -3,6 +3,8 @@ import formidable from "formidable";
 import { ERPCError } from "../error";
 import { unflatten } from "flat";
 
+const jsonParser = express.json();
+
 /**
  * Custom body-parser that either sends the request to express.json() or formidable
  * depending on the content-type header.
@@ -22,6 +24,6 @@ export function bodyParser(req: Request, res: Response, next: NextFunction) {
       }
     });
   } else {
-    return express.json()(req, res, next);
+    return jsonParser(req, res, next);
   }
 }

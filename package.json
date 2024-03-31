@@ -1,6 +1,6 @@
 {
   "name": "@scinorandex/erpc",
-  "version": "0.2.2",
+  "version": "0.3.0",
   "description": "A serverside framework for declaratively building type-safe express APIs",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
@@ -8,7 +8,6 @@
     "/dist"
   ],
   "scripts": {
-    "test": "ERPC_LOG=true ts-node --esm examples/starter.ts",
     "watch": "tsc -w",
     "build": "tsc"
   },
@@ -29,6 +28,7 @@
   "homepage": "https://github.com/scinscinscin/erpc#readme",
   "devDependencies": {
     "@types/morgan": "^1.9.4",
+    "@types/ws": "^8.5.10",
     "ts-node": "10.9.1",
     "typescript": "4.9.4"
   },
@@ -44,6 +44,7 @@
     "flat": "^5.0.2",
     "formidable": "^2.1.1",
     "morgan": "^1.10.0",
+    "ws": "^8.16.0",
     "zod": "3.20.2"
   }
 }

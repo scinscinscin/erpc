@@ -5,6 +5,17 @@ import { Router, RouterT } from "./router";
 import morgan from "morgan";
 import { ERPCError, ErrorMap } from "./error";
 import { bodyParser } from "./utils/parser";
+import { createServer } from "node:http";
+import { WebSocketServer } from "ws";
+import { removeWrappingSlashes } from "./utils/removeWrappingSlashes";
+import {
+  CompiledRoutingEngine,
+  Connection,
+  HeirarchyEnd,
+  RawRoutingEngine,
+  compileRouteTree,
+  matchPathToEndpoint,
+} from "./websocket";
 
 export interface ServerConstructorOptions {
   /** The port to run the server on */
@@ -51,6 +62,9 @@ export class Server {
   private readonly app = express();
   public readonly rootRouter: RouterT<{}>;
 
+  private readonly rawWsRouter: RawRoutingEngine<HeirarchyEnd> = {};
+  private compiledWsRouter: CompiledRoutingEngine<HeirarchyEnd>;
+
   /**
    * Intermediate encapsulates all the working logic of erpc, so it can be attatched to
    * other Express servers (like serving ERPC on /api while a Next.js server runs on /).
@@ -65,8 +79,9 @@ export class Server {
    */
   public readonly intermediate: ExpressRouter;
 
-  constructor(opts: ServerConstructorOptions, router = Router("/")) {
-    this.rootRouter = router;
+  constructor(opts: ServerConstructorOptions, router?: RouterT<{}>) {
+    this.rootRouter = router ?? Router("/", this.rawWsRouter);
+
     this.intermediate = ExpressRouter();
     this.constructorOptions = opts;
     this.LOG_ERRORS = !(opts.logErrors === false);
@@ -119,8 +134,32 @@ export class Server {
   }
 
   listen(handler: (port: number) => void) {
-    this.app.listen(this.constructorOptions.port, () => {
+    const httpServer = createServer(this.app);
+    const websocketServer = new WebSocketServer({ noServer: true });
+
+    httpServer.listen(this.constructorOptions.port, () => {
       handler(this.constructorOptions.port);
+    });
+
+    httpServer.on("upgrade", (req, socket, head) => {
+      this.compiledWsRouter = compileRouteTree(this.rawWsRouter["/"] as RawRoutingEngine<HeirarchyEnd>);
+
+      const [path, queryParams] = req.url!.split("?");
+      const query = queryParams
+        ? queryParams.split("&").reduce((acc, curr) => {
+            const [key, val] = curr.split("=");
+            return { ...acc, [key]: val ?? "true" };
+          }, {} as { [key: string]: string })
+        : {};
+
+      const endpoint = matchPathToEndpoint(this.compiledWsRouter, removeWrappingSlashes(path).split("/"));
+
+      if (endpoint) {
+        websocketServer.handleUpgrade(req, socket, head, (ws, req) => {
+          const { handler, validators } = endpoint.getValue();
+          handler({ conn: new Connection(ws, req, validators), params: endpoint.variables, query });
+        });
+      }
     });
   }
 }

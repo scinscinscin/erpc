@@ -26,5 +26,5 @@
     "disableSizeLimit": true
   },
   "exclude": ["node_modules"],
-  "include": ["./lib/**/*.ts"]
+  "include": ["./lib/**/*.ts", "examples/scratch.ts"]
 }

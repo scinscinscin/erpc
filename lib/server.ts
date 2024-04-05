@@ -17,6 +17,7 @@ import {
   compileRouteTree,
   matchPathToEndpoint,
 } from "./websocket";
+import { transformERPCError } from "./utils/errorHandling";
 
 export interface ServerConstructorOptions {
   /** The port to run the server on */
@@ -111,20 +112,9 @@ export class Server {
       }
 
       if (err !== undefined && this.LOG_ERRORS) console.error(err);
-      if (err instanceof ERPCError) {
-        const {
-          opts: { message, code: type, customHTTPCode },
-        } = err;
-
-        res.status(customHTTPCode ?? ErrorMap[type]);
-        res.json({ success: false, error: { type, message } });
-
-        return;
-      }
-
-      if (res.statusCode === 200) res.status(500);
-      if (err instanceof Error) res.json({ success: false, error: this.LOG_ERRORS ? err.message : undefined });
-      else res.json({ success: false, error: "Unknown internal server error" });
+      const { error, status } = transformERPCError(err);
+      if (res.statusCode === 200) res.status(status);
+      res.json({ success: false, error: this.LOG_ERRORS ? error : undefined });
     });
 
     this.app.use("/", this.intermediate);
@@ -161,7 +151,15 @@ export class Server {
       if (endpoint) {
         websocketServer.handleUpgrade(req, socket, head, (ws, req) => {
           const { handler, validators } = endpoint.getValue();
-          handler({ conn: new Connection(ws, req, validators), params: endpoint.variables, query });
+
+          handler({ conn: new Connection(ws, req, validators), params: endpoint.variables, query })
+            .then(() => {
+              ws.send("@scinorandex/erpc -- stabilize");
+            })
+            .catch((err) => {
+              const { error, status } = transformERPCError(err);
+              ws.close(4000 + status, JSON.stringify({ error }));
+            });
         });
       }
     };

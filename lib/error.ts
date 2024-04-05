@@ -11,7 +11,7 @@ export type ErrorType = keyof typeof ErrorMap;
 export interface ERPCErrorOptions {
   code: ErrorType;
   message: string;
-  customHTTPCode?: number;
+  customCode?: number;
 }
 
 export class ERPCError extends Error {

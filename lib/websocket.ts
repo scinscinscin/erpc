@@ -6,7 +6,7 @@ import { removeWrappingSlashes } from "./utils/removeWrappingSlashes";
 const reqValidator = z.object({ eventName: z.string(), data: z.any() });
 
 export class Connection<Params extends { Emits: { [key: string]: any }; Receives: { [key: string]: any } }> {
-  socketEventHandlerMap: Map<string, (data: any) => void> = new Map();
+  socketEventHandlerMap: Map<string, (data: any) => Promise<void>> = new Map();
 
   public constructor(
     public readonly socket: WebSocket,
@@ -22,7 +22,7 @@ export class Connection<Params extends { Emits: { [key: string]: any }; Receives
         if (!handler) throw new Error(`Could not find a eventHandler for event: ${eventName}`);
 
         const parsedData = await validators[eventName].parseAsync(data);
-        handler(parsedData);
+        await handler(parsedData);
       } catch (err) {}
     });
   }
@@ -31,7 +31,7 @@ export class Connection<Params extends { Emits: { [key: string]: any }; Receives
     this.socket.send(JSON.stringify({ eventName, data }));
   }
 
-  on<T extends keyof Params["Receives"]>(eventName: T, handler: (data: Params["Receives"][T]) => void) {
+  on<T extends keyof Params["Receives"]>(eventName: T, handler: (data: Params["Receives"][T]) => Promise<void>) {
     this.socketEventHandlerMap.set(eventName as string, handler);
   }
 }

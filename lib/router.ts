@@ -23,6 +23,7 @@ type HTTPMethodProviderType<PathParams extends {}> = <
 
 export interface RouterT<PathParams extends {}> {
   expressRouter: ExpressRouter;
+  wsRouter: WebSocketRouter;
   sub: <PathString extends string>(path: PathString) => RouterT<Overwrite<RouteParameters<PathString>, PathParams>>;
   merge: <SubPathParams extends {}>(subrouter: RouterT<SubPathParams>) => RouterT<PathParams>;
   subroutedAt: () => string;
@@ -54,16 +55,15 @@ type WebsocketEndpointProviderType<PathParams extends {}> = <
   }) => Promise<void>
 ) => void;
 
-export function Router<PathParams extends {}>(
-  path: string,
-  parentWsRouter: RawRoutingEngine<HeirarchyEnd>
-): RouterT<PathParams> {
+export type WebSocketRouter = RawRoutingEngine<HeirarchyEnd>;
+export function Router<PathParams extends {}>(path: string, parentWsRouter: WebSocketRouter): RouterT<PathParams> {
   const expressRouter = ExpressRouter({ mergeParams: true });
-  const wsRouter: typeof parentWsRouter = {};
+  const wsRouter: WebSocketRouter = {};
   parentWsRouter[path] = wsRouter;
 
   return {
     expressRouter,
+    wsRouter,
     subroutedAt: () => path,
     sub: function <PathString extends string>(subRouterPath: PathString) {
       const router = Router<Overwrite<RouteParameters<PathString>, PathParams>>(subRouterPath, wsRouter);

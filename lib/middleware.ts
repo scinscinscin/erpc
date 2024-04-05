@@ -16,7 +16,7 @@ export class FinalizedHandler<ReturnType, BodyParameters, PathParameters, QueryP
     query_parameters: QueryParameters;
   };
 
-  constructor(public readonly __middlewares: any[]) {
+  constructor(public readonly __middlewares: any) {
     this.__internal_reflection = undefined as any;
   }
 }

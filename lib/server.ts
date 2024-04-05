@@ -5,7 +5,8 @@ import { Router, RouterT } from "./router";
 import morgan from "morgan";
 import { ERPCError, ErrorMap } from "./error";
 import { bodyParser } from "./utils/parser";
-import { createServer } from "node:http";
+import { createServer, type IncomingMessage } from "node:http";
+import Stream from "stream";
 import { WebSocketServer } from "ws";
 import { removeWrappingSlashes } from "./utils/removeWrappingSlashes";
 import {
@@ -80,7 +81,13 @@ export class Server {
   public readonly intermediate: ExpressRouter;
 
   constructor(opts: ServerConstructorOptions, router?: RouterT<{}>) {
-    this.rootRouter = router ?? Router("/", this.rawWsRouter);
+    if (router) {
+      this.rawWsRouter = { "/": router.wsRouter };
+      this.rootRouter = router;
+    } else {
+      this.rawWsRouter = {};
+      this.rootRouter = Router("/", this.rawWsRouter);
+    }
 
     this.intermediate = ExpressRouter();
     this.constructorOptions = opts;
@@ -133,16 +140,13 @@ export class Server {
     return this.rootRouter.sub(path);
   }
 
-  listen(handler: (port: number) => void) {
-    const httpServer = createServer(this.app);
+  createWebSocketHandler() {
     const websocketServer = new WebSocketServer({ noServer: true });
 
-    httpServer.listen(this.constructorOptions.port, () => {
-      handler(this.constructorOptions.port);
-    });
-
-    httpServer.on("upgrade", (req, socket, head) => {
-      this.compiledWsRouter = compileRouteTree(this.rawWsRouter["/"] as RawRoutingEngine<HeirarchyEnd>);
+    return (req: IncomingMessage, socket: Stream.Duplex, head: Buffer) => {
+      if (!this.compiledWsRouter) {
+        this.compiledWsRouter = compileRouteTree(this.rawWsRouter["/"] as RawRoutingEngine<HeirarchyEnd>);
+      }
 
       const [path, queryParams] = req.url!.split("?");
       const query = queryParams
@@ -160,6 +164,16 @@ export class Server {
           handler({ conn: new Connection(ws, req, validators), params: endpoint.variables, query });
         });
       }
+    };
+  }
+
+  listen(handler: (port: number) => void) {
+    const httpServer = createServer(this.app);
+
+    httpServer.listen(this.constructorOptions.port, () => {
+      handler(this.constructorOptions.port);
     });
+
+    httpServer.on("upgrade", this.createWebSocketHandler());
   }
 }

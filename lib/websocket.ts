@@ -36,11 +36,17 @@ export class Connection<Params extends { Emits: { [key: string]: any }; Receives
   }
 }
 
+export type WSValidatorReturnType<Receives, Emits> = {
+  validators: { [key in keyof Receives]: z.ZodType<Receives[key], z.ZodTypeDef, Receives[key]> };
+  Receives: Receives;
+  Emits: Emits;
+};
+
 export function wsValidationBuilder<Receives extends { [key: string]: any }>(validators: {
   [key in keyof Receives]: z.ZodType<Receives[key]>;
 }) {
   return {
-    emits<Emits extends { [key: string]: any }>() {
+    emits<Emits extends { [key: string]: any }>(): WSValidatorReturnType<Receives, Emits> {
       return { validators, Receives: {} as Receives, Emits: {} as Emits };
     },
   };
@@ -48,7 +54,7 @@ export function wsValidationBuilder<Receives extends { [key: string]: any }>(val
 
 export function wsValidate<T extends { Receives: { [key: string]: any }; Emits: { [key: string]: any } }>(validators: {
   [key in keyof T["Receives"]]: z.ZodType<T["Receives"][key]>;
-}) {
+}): WSValidatorReturnType<T["Receives"], T["Emits"]> {
   return { validators, Receives: {} as T["Receives"], Emits: {} as T["Emits"] };
 }
 

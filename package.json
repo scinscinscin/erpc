@@ -1,6 +1,6 @@
 {
   "name": "@scinorandex/erpc",
-  "version": "0.3.2",
+  "version": "0.3.4",
   "description": "A serverside framework for declaratively building type-safe express APIs",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",

@@ -35,7 +35,7 @@ server.rootRouter.ws(
   wsValidate<Endpoint>({ send_message: z.object({ contents: z.string() }) }),
   async ({ conn, params, query }) => {
     connections.push(conn);
-    conn.on("send_message", (data) => {
+    conn.on("send_message", async (data) => {
       for (const connection of connections) {
         connection.emit("new_message", { contents: data.contents });
       }

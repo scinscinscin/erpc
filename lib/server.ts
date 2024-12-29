@@ -5,7 +5,8 @@ import { Router, RouterT } from "./router";
 import morgan from "morgan";
 import { ERPCError, ErrorMap } from "./error";
 import { bodyParser } from "./utils/parser";
-import { createServer } from "node:http";
+import { createServer, type IncomingMessage } from "node:http";
+import Stream from "stream";
 import { WebSocketServer } from "ws";
 import { removeWrappingSlashes } from "./utils/removeWrappingSlashes";
 import {
@@ -16,6 +17,7 @@ import {
   compileRouteTree,
   matchPathToEndpoint,
 } from "./websocket";
+import { transformERPCError } from "./utils/errorHandling";
 
 export interface ServerConstructorOptions {
   /** The port to run the server on */
@@ -37,6 +39,12 @@ export interface ServerConstructorOptions {
     xPoweredBy?: boolean;
   };
 
+  /**
+   * THe prefix of the api routes if any, this is needed by the websocket router.
+   * Ex: "/api"
+   */
+  apiPrefix?: string;
+
   defaultMiddleware?: {
     /**
      * If defined, the server loads cors middleware with these options.
@@ -57,6 +65,7 @@ export interface ServerConstructorOptions {
 }
 
 export class Server {
+  private apiPrefix?: string;
   private constructorOptions: ServerConstructorOptions;
   private readonly LOG_ERRORS: boolean;
   private readonly app = express();
@@ -80,7 +89,14 @@ export class Server {
   public readonly intermediate: ExpressRouter;
 
   constructor(opts: ServerConstructorOptions, router?: RouterT<{}>) {
-    this.rootRouter = router ?? Router("/", this.rawWsRouter);
+    this.apiPrefix = opts.apiPrefix;
+    if (router) {
+      this.rawWsRouter = { "/": router.wsRouter };
+      this.rootRouter = router;
+    } else {
+      this.rawWsRouter = {};
+      this.rootRouter = Router("/", this.rawWsRouter);
+    }
 
     this.intermediate = ExpressRouter();
     this.constructorOptions = opts;
@@ -104,20 +120,9 @@ export class Server {
       }
 
       if (err !== undefined && this.LOG_ERRORS) console.error(err);
-      if (err instanceof ERPCError) {
-        const {
-          opts: { message, code: type, customHTTPCode },
-        } = err;
-
-        res.status(customHTTPCode ?? ErrorMap[type]);
-        res.json({ success: false, error: { type, message } });
-
-        return;
-      }
-
-      if (res.statusCode === 200) res.status(500);
-      if (err instanceof Error) res.json({ success: false, error: this.LOG_ERRORS ? err.message : undefined });
-      else res.json({ success: false, error: "Unknown internal server error" });
+      const { error, status } = transformERPCError(err);
+      if (res.statusCode === 200) res.status(status);
+      res.json({ success: false, error: this.LOG_ERRORS ? error : undefined });
     });
 
     this.app.use("/", this.intermediate);
@@ -133,18 +138,18 @@ export class Server {
     return this.rootRouter.sub(path);
   }
 
-  listen(handler: (port: number) => void) {
-    const httpServer = createServer(this.app);
+  createWebSocketHandler() {
     const websocketServer = new WebSocketServer({ noServer: true });
 
-    httpServer.listen(this.constructorOptions.port, () => {
-      handler(this.constructorOptions.port);
-    });
+    return (req: IncomingMessage, socket: Stream.Duplex, head: Buffer) => {
+      if (!this.compiledWsRouter) {
+        this.compiledWsRouter = compileRouteTree(this.rawWsRouter["/"] as RawRoutingEngine<HeirarchyEnd>);
+      }
 
-    httpServer.on("upgrade", (req, socket, head) => {
-      this.compiledWsRouter = compileRouteTree(this.rawWsRouter["/"] as RawRoutingEngine<HeirarchyEnd>);
+      let url = req.url!
+      if(this.apiPrefix != undefined && url.startsWith(this.apiPrefix)) url = url.replace(this.apiPrefix, "");
 
-      const [path, queryParams] = req.url!.split("?");
+      const [path, queryParams] = url!.split("?");
       const query = queryParams
         ? queryParams.split("&").reduce((acc, curr) => {
             const [key, val] = curr.split("=");
@@ -157,9 +162,27 @@ export class Server {
       if (endpoint) {
         websocketServer.handleUpgrade(req, socket, head, (ws, req) => {
           const { handler, validators } = endpoint.getValue();
-          handler({ conn: new Connection(ws, req, validators), params: endpoint.variables, query });
+
+          handler({ conn: new Connection(ws, req, validators), params: endpoint.variables, query })
+            .then(() => {
+              ws.send("@scinorandex/erpc -- stabilize");
+            })
+            .catch((err) => {
+              const { error, status } = transformERPCError(err);
+              ws.close(4000 + status, JSON.stringify({ error }));
+            });
         });
       }
+    };
+  }
+
+  listen(handler: (port: number) => void) {
+    const httpServer = createServer(this.app);
+
+    httpServer.listen(this.constructorOptions.port, () => {
+      handler(this.constructorOptions.port);
     });
+
+    httpServer.on("upgrade", this.createWebSocketHandler());
   }
 }

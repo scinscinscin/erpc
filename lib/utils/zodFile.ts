@@ -7,10 +7,14 @@ export function zodFile<T extends string>(filetype: T | T[]) {
   return z
     .custom<FileWrapper<T>>((v) => {
       // This is the best check right now, since you can't serialize a function
-      if (typeof (v as any)._events.error != "function") return false;
-      const mime = (v as unknown as FormidableFile).mimetype;
-      if (typeof filetype === "string" && filetype !== mime) return false;
-      else if (typeof filetype === "object" && !filetype.includes(mime as T)) return false;
+      try {
+        if (typeof (v as any)._events.error != "function") return false;
+        const mime = (v as unknown as FormidableFile).mimetype;
+        if (typeof filetype === "string" && filetype !== mime) return false;
+        else if (typeof filetype === "object" && !filetype.includes(mime as T)) return false;
+      } catch (err) {
+        return false;
+      }
 
       return true;
     })

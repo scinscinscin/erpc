@@ -3,6 +3,7 @@ import { z } from "zod";
 
 export type FileWrapper<T> = File & { "{FileWrapperType}": T };
 
+// TODO: Need to find a way to deprecate this and use z.file() instead.
 export function zodFile<T extends string>(filetype: T | T[]) {
   return z
     .custom<FileWrapper<T>>((v) => {

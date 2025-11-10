@@ -1,5 +1,5 @@
 import { NextFunction, Request, Response, Router } from "express";
-import { z, ZodError, ZodType } from "zod";
+import { z, ZodType } from "zod";
 import { ERPCError } from "./error";
 import { Overwrite } from "./utils/types";
 
@@ -99,10 +99,7 @@ export function generateProcedure<
       return function (req: Request, res: Response, next: NextFunction) {
         mwFunction(req, res as any)
           .then((result) => {
-            Object.entries(result as Record<string, any>).forEach(([key, value]) => {
-              res.locals[key] = value;
-            });
-
+            Object.entries(result as Record<string, any>).forEach(([key, value]) => (res.locals[key] = value));
             return next();
           })
           .catch(next); /** Send the error to the root level error handler */
@@ -111,9 +108,7 @@ export function generateProcedure<
 
     middlewares.push(function (req: Request<RouteParams>, res: Response, next: NextFunction) {
       handler(req, res as Response<unknown, MergedLocals>, res.locals as MergedLocals)
-        .then((result) => {
-          res.json({ success: true, result });
-        })
+        .then((result) => res.json({ success: true, result }))
         .catch(next);
     });
 

@@ -41,14 +41,9 @@ userRouter.get("/testing", baseProcedure, async (req, res, locals) => {
 
 userRouter.put(
   "/image_upload",
-  baseProcedure.input(
-    z.object({
-      username: z.array(z.string()),
-      image_ko: z.array(zodFile("image/jpeg")),
-    })
-  ),
+  baseProcedure.input(z.object({ username: z.array(z.string()), my_image: z.array(zodFile("image/jpeg")) })),
   async (req, res, { input }) => {
-    console.log(input.image_ko[0]);
+    console.log(input.my_image[0]);
     //           ^?
   }
 );

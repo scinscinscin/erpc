@@ -3,7 +3,6 @@
     "target": "es2017",
     "module": "commonjs",
     "lib": ["dom", "es6", "es2021", "esnext.asynciterable"],
-    "skipLibCheck": true,
     "sourceMap": true,
     "moduleResolution": "node",
     "removeComments": false,
@@ -23,8 +22,9 @@
     "baseUrl": ".",
     "declaration": true,
     "outDir": "./dist",
-    "disableSizeLimit": true
+    "disableSizeLimit": true,
+    "skipLibCheck": true
   },
-  "exclude": ["node_modules"],
-  "include": ["./lib/**/*.ts", "examples/scratch.ts"]
+  "include": ["./lib/**/*.ts", "examples/scratch.ts"],
+  "exclude": ["node_modules", "./lib/formidable/**/*.ts"]
 }

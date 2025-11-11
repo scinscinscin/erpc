@@ -1,10 +1,9 @@
 import express, { NextFunction, Request, Response } from "express";
-import formidable from "formidable";
+import formidable from "../formidable/index";
 import { ERPCError } from "../error";
 import { unflatten } from "flat";
 
 const jsonParser = express.json();
-const multipartParser = formidable({ multiples: true });
 
 /**
  * Custom body-parser that either sends the request to express.json() or formidable
@@ -13,6 +12,7 @@ const multipartParser = formidable({ multiples: true });
 export function bodyParser(req: Request, res: Response, next: NextFunction) {
   if (!req.headers["content-type"]?.startsWith("multipart")) return jsonParser(req, res, next);
 
+  const multipartParser = formidable({ multiples: true });
   return multipartParser.parse(req, (err, fields, files) => {
     if (!err) {
       try {

@@ -11,7 +11,7 @@ export class Connection<Params extends { Emits: { [key: string]: any }; Receives
   public constructor(
     public readonly socket: WebSocket,
     public readonly req: IncomingMessage,
-    validators: { [key: string]: z.AnyZodObject }
+    validators: { [key: string]: z.ZodObject }
   ) {
     this.socket.on("message", async (data: RawData) => {
       const stringified = data.toString();
@@ -37,13 +37,13 @@ export class Connection<Params extends { Emits: { [key: string]: any }; Receives
 }
 
 export type WSValidatorReturnType<Receives, Emits> = {
-  validators: { [key in keyof Receives]: z.ZodType<Receives[key], z.ZodTypeDef, Receives[key]> };
+  validators: { [key in keyof Receives]: z.ZodType<Receives[key], z.ZodType> };
   Receives: Receives;
   Emits: Emits;
 };
 
 export function wsValidationBuilder<Receives extends { [key: string]: any }>(validators: {
-  [key in keyof Receives]: z.ZodType<Receives[key]>;
+  [key in keyof Receives]: z.ZodType<Receives[key], any>;
 }) {
   return {
     emits<Emits extends { [key: string]: any }>(): WSValidatorReturnType<Receives, Emits> {
@@ -53,13 +53,13 @@ export function wsValidationBuilder<Receives extends { [key: string]: any }>(val
 }
 
 export function wsValidate<T extends { Receives: { [key: string]: any }; Emits: { [key: string]: any } }>(validators: {
-  [key in keyof T["Receives"]]: z.ZodType<T["Receives"][key]>;
+  [key in keyof T["Receives"]]: z.ZodType<T["Receives"][key], any>;
 }): WSValidatorReturnType<T["Receives"], T["Emits"]> {
   return { validators, Receives: {} as T["Receives"], Emits: {} as T["Emits"] };
 }
 
 export type HeirarchyEnd = {
-  validators: { [key: string]: z.AnyZodObject };
+  validators: { [key: string]: z.ZodObject };
   handler: (ctx: {
     conn: Connection<{ Emits: { [key: string]: any }; Receives: { [key: string]: any } }>;
     params: { [key: string]: any };
